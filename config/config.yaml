@@ -1,0 +1,45 @@
+# Default configuration for async data pipeline
+# Override order: CLI flags > environment variables > this file
+
+# Rate limiting (5 requests per second per endpoint)
+max_requests_per_second: 5
+rate_limit_tokens: 5
+rate_limit_refill_interval: 1.0
+rate_limit_retry_sleep: 0.05
+
+# Retry policy with exponential backoff
+max_retries: 3
+retry_base_delay: 0.5
+retry_max_delay: 4.0
+retry_jitter_max: 0.5
+retryable_status_codes: [429, 502, 503, 504]
+
+# HTTP timeouts (connect=3s, read=8s)
+connect_timeout: 3.0
+read_timeout: 8.0
+
+# Circuit breaker (3 failures, 15s cooldown)
+circuit_breaker_failure_threshold: 3
+circuit_breaker_cooldown: 15.0
+
+# Processing configuration
+worker_pool_size: 4
+processing_batch_size: 50
+bounded_queue_size: 100
+
+# Pipeline constraints
+total_timeout: 60.0
+
+# Mock server configuration
+mock_server_ports: [8001, 8002, 8003]
+mock_server_items_per_page: 20
+mock_server_min_pages: 5
+mock_server_error_rate: 0.1
+
+# Logging
+log_level: "INFO"
+structured_logging: true
+
+# Output
+output_directory: "out"
+output_filename: "summary.json"
