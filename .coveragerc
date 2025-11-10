@@ -1,6 +1,6 @@
 [run]
 branch = True
-source = src/
+source = src
 omit =
     src/models/*
     src/*/__init__.py
@@ -8,12 +8,9 @@ omit =
     */_version.py
     */__main__.py
 
-# Optional: attribute coverage by test context (unit vs integration)
-dynamic_context = test_function
-
 [report]
 show_missing = True
-skip_covered = True
+skip_covered = False
 precision = 1
 
 # Hide trivial lines from "missing"
