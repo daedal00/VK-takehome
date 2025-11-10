@@ -41,13 +41,22 @@ The system consists of three main layers:
 
 ## Development
 
+### Running Tests
+
 ```bash
-# Run tests
-uv run pytest
+# Run all tests
+uv run pytest -v
 
 # Run with coverage
 uv run pytest --cov=src --cov-report=term-missing
 
+# Run specific test file
+uv run pytest tests/unit/test_rate_limiter.py -v
+```
+
+### Code Quality (Optional - Run Before Committing)
+
+```bash
 # Format code
 uv run black src/ tests/
 
@@ -57,6 +66,16 @@ uv run ruff check src/ tests/
 # Type checking
 uv run mypy src/
 ```
+
+### CI/CD
+
+GitHub Actions runs automatically on all PRs:
+
+- ✅ **Test Suite**: All tests must pass
+- 📊 **Coverage Report**: Generated and uploaded (no threshold enforced yet)
+- 📦 **Artifacts**: HTML coverage reports available for download
+
+**Philosophy**: During early development, we focus on test correctness rather than enforcing coverage thresholds or auto-formatting. This keeps PRs clean and focused on feature implementation.
 
 ## Configuration
 
