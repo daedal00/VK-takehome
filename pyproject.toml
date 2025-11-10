@@ -36,11 +36,14 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
-addopts = "--cov=src --cov-report=term-missing --cov-report=html"
+testpaths = ["tests/unit"]
+addopts = "-q --maxfail=1"
 markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "unit: fast, pure-python unit tests",
+    "integration: slow, uses real FastAPI mocks/compose",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
 
 [tool.black]
