@@ -1,0 +1,25 @@
+[run]
+branch = True
+source = src/
+omit =
+    src/models/*
+    src/*/__init__.py
+    src/mock_servers/*
+    */_version.py
+    */__main__.py
+
+# Optional: attribute coverage by test context (unit vs integration)
+dynamic_context = test_function
+
+[report]
+show_missing = True
+skip_covered = True
+precision = 1
+
+# Hide trivial lines from "missing"
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    except (KeyboardInterrupt, SystemExit):
