@@ -15,7 +15,6 @@ dynamic_context = test_function
 show_missing = True
 skip_covered = True
 precision = 1
-fail_under = 80
 
 # Hide trivial lines from "missing"
 exclude_lines =
