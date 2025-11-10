@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Dict
+from typing import Callable, Dict
 
 
 class RateLimiter:
@@ -12,17 +12,28 @@ class RateLimiter:
     When tokens are unavailable, uses sleep(0.05) retry to maintain ≤5 rps/endpoint.
     """
     
-    def __init__(self, max_tokens: int = 5, refill_rate: float = 5.0, retry_sleep: float = 0.05):
+    def __init__(
+        self,
+        max_tokens: int = 5,
+        refill_rate: float = 5.0,
+        retry_sleep: float = 0.05,
+        now: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], any] = asyncio.sleep,
+    ):
         """Initialize rate limiter with token bucket parameters.
         
         Args:
             max_tokens: Maximum tokens in bucket (default: 5)
             refill_rate: Tokens added per second (default: 5.0 for 5 tokens/sec)
             retry_sleep: Sleep duration when tokens unavailable (default: 0.05s)
+            now: Clock function for time operations (default: time.monotonic)
+            sleeper: Async sleep function (default: asyncio.sleep)
         """
         self.max_tokens = max_tokens
         self.refill_rate = refill_rate
         self.retry_sleep = retry_sleep
+        self._now = now
+        self._sleep = sleeper
         
         # Per-endpoint token buckets: {endpoint: (tokens, last_refill_time)}
         self._buckets: Dict[str, tuple[float, float]] = {}
@@ -48,7 +59,7 @@ class RateLimiter:
                     return
             
             # No tokens available, sleep and retry
-            await asyncio.sleep(self.retry_sleep)
+            await self._sleep(self.retry_sleep)
     
     def tokens_available(self, endpoint: str) -> int:
         """Get the number of tokens currently available for an endpoint.
@@ -73,7 +84,7 @@ class RateLimiter:
         Returns:
             Tuple of (current_tokens, last_refill_time)
         """
-        current_time = time.monotonic()
+        current_time = self._now()
         
         if endpoint not in self._buckets:
             # Initialize new bucket with full tokens
