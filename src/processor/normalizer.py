@@ -1,7 +1,7 @@
 """Data normalizer for converting heterogeneous product data to unified schema."""
 
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from src.models.data_models import Product
 
@@ -29,15 +29,33 @@ def normalize_product(raw_product: Dict, source: str) -> Product:
     )
 
 
-def normalize_batch(raw_products: List[Dict], source: str) -> List[Product]:
+def normalize_batch(
+    raw_products: List[Dict],
+    source: str,
+    seen_ids: Set[str] = None
+) -> List[Product]:
     """
-    Normalize batch of products.
+    Normalize batch of products with deduplication.
     
     Args:
         raw_products: List of raw product data
         source: Source endpoint name
+        seen_ids: Set of already seen product IDs for deduplication
         
     Returns:
-        List of normalized Products
+        List of normalized Products (deduplicated if seen_ids provided)
     """
-    return [normalize_product(p, source) for p in raw_products]
+    products = []
+    
+    for raw in raw_products:
+        product = normalize_product(raw, source)
+        
+        # Deduplicate if seen_ids provided
+        if seen_ids is not None:
+            if product.id in seen_ids:
+                continue  # Skip duplicate
+            seen_ids.add(product.id)
+        
+        products.append(product)
+    
+    return products
