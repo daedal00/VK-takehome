@@ -120,7 +120,16 @@ class RetryHandler:
                     raise
                 
                 # Check if error is retryable
-                if not self.is_retryable():
+                status_code = None
+                is_timeout = False
+                
+                # Extract error details for retryability check
+                if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                    status_code = e.response.status_code
+                if 'timeout' in str(type(e)).lower():
+                    is_timeout = True
+                
+                if not self.is_retryable(status_code=status_code, is_timeout=is_timeout):
                     # Non-retryable error, fail immediately
                     raise
                 

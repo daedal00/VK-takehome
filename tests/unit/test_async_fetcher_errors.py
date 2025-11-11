@@ -431,3 +431,134 @@ class TestNonRetryableErrors:
         assert "error" in result
         assert result["retryable"] is False
         assert mock_get.call_count == 1
+
+
+
+class TestEmptyPageTermination:
+    """Test empty page and 204 termination scenarios."""
+    
+    @pytest.fixture
+    def fetcher_components(self):
+        """Create fetcher components for testing."""
+        rate_limiter = RateLimiter()
+        circuit_breaker = CircuitBreaker()
+        http_client = AsyncHTTPClient()
+        fetcher = AsyncFetcher(rate_limiter, circuit_breaker, http_client)
+        return fetcher, rate_limiter, circuit_breaker, http_client
+    
+    @pytest.mark.asyncio
+    async def test_empty_products_list_stops_pagination(self, fetcher_components):
+        """Test that empty products list stops pagination."""
+        fetcher, rate_limiter, circuit_breaker, http_client = fetcher_components
+        
+        def handler(request):
+            page = int(request.url.params.get("page", 1))
+            if page == 1:
+                return httpx.Response(200, json={"products": [{"id": 1}]})
+            else:
+                # Empty products list
+                return httpx.Response(200, json={"products": []})
+        
+        transport = httpx.MockTransport(handler)
+        http_client._client = httpx.AsyncClient(transport=transport)
+        
+        queue = asyncio.Queue(maxsize=100)
+        stats = await fetcher.fetch_endpoint_pages("http://test.com", queue)
+        
+        # Should stop after page 1
+        assert stats.pages_fetched == 1
+        assert stats.items_fetched == 1
+        assert queue.qsize() == 1
+    
+    @pytest.mark.asyncio
+    async def test_204_no_content_stops_pagination(self, fetcher_components):
+        """Test that 204 No Content stops pagination."""
+        fetcher, rate_limiter, circuit_breaker, http_client = fetcher_components
+        
+        def handler(request):
+            page = int(request.url.params.get("page", 1))
+            if page == 1:
+                return httpx.Response(200, json={"products": [{"id": 1}]})
+            else:
+                # 204 No Content
+                return httpx.Response(204)
+        
+        transport = httpx.MockTransport(handler)
+        http_client._client = httpx.AsyncClient(transport=transport)
+        
+        queue = asyncio.Queue(maxsize=100)
+        stats = await fetcher.fetch_endpoint_pages("http://test.com", queue)
+        
+        # Should stop after page 1
+        assert stats.pages_fetched == 1
+        assert stats.items_fetched == 1
+        assert queue.qsize() == 1
+    
+    @pytest.mark.asyncio
+    async def test_204_on_first_page_returns_zero_items(self, fetcher_components):
+        """Test that 204 on first page returns zero items."""
+        fetcher, rate_limiter, circuit_breaker, http_client = fetcher_components
+        
+        def handler(request):
+            return httpx.Response(204)
+        
+        transport = httpx.MockTransport(handler)
+        http_client._client = httpx.AsyncClient(transport=transport)
+        
+        queue = asyncio.Queue(maxsize=100)
+        stats = await fetcher.fetch_endpoint_pages("http://test.com", queue)
+        
+        # Should have zero pages and items
+        assert stats.pages_fetched == 0
+        assert stats.items_fetched == 0
+        assert queue.qsize() == 0
+
+
+class TestCircuitBreakerSkip:
+    """Test circuit breaker open state skips requests."""
+    
+    @pytest.fixture
+    def fetcher_components(self):
+        """Create fetcher components for testing."""
+        rate_limiter = RateLimiter()
+        circuit_breaker = CircuitBreaker(failure_threshold=3)
+        http_client = AsyncHTTPClient()
+        fetcher = AsyncFetcher(rate_limiter, circuit_breaker, http_client)
+        return fetcher, rate_limiter, circuit_breaker, http_client
+    
+    @pytest.mark.asyncio
+    async def test_circuit_open_allows_half_open_attempts(self, fetcher_components):
+        """Test that open circuit breaker allows half-open test requests."""
+        fetcher, rate_limiter, circuit_breaker, http_client = fetcher_components
+        endpoint = "http://test.com"
+        
+        # Manually open the circuit
+        for _ in range(3):
+            circuit_breaker.record_failure(endpoint, retryable=True)
+        
+        assert circuit_breaker.state(endpoint) == CircuitState.OPEN
+        
+        # Circuit breaker should return False or HalfOpenToken
+        cb_result = circuit_breaker.should_allow(endpoint)
+        
+        # Either False (fully open) or HalfOpenToken (testing recovery)
+        assert cb_result is False or isinstance(cb_result, HalfOpenToken)
+    
+    @pytest.mark.asyncio
+    async def test_circuit_open_stops_pagination(self, fetcher_components):
+        """Test that open circuit stops pagination immediately."""
+        fetcher, rate_limiter, circuit_breaker, http_client = fetcher_components
+        endpoint = "http://test.com"
+        
+        # Manually open the circuit
+        for _ in range(3):
+            circuit_breaker.record_failure(endpoint, retryable=True)
+        
+        queue = asyncio.Queue(maxsize=100)
+        stats = await fetcher.fetch_endpoint_pages(endpoint, queue)
+        
+        # Should have zero pages fetched
+        assert stats.pages_fetched == 0
+        assert stats.items_fetched == 0
+        assert stats.errors == 1  # Circuit breaker error
+        assert queue.qsize() == 0
