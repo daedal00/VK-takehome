@@ -28,6 +28,7 @@ class DataProcessor:
         self.batch_size = batch_size
         self.products: List[Product] = []
         self.batches_processed = 0
+        self.seen_ids: set = set()  # For deduplication
     
     async def consume_queue(
         self,
@@ -60,12 +61,13 @@ class DataProcessor:
                 products = page_data.get("data", {}).get("products", [])
                 source = page_data.get("endpoint", "unknown")
                 
-                # Process in thread pool (CPU-bound)
+                # Process in thread pool (CPU-bound) with deduplication
                 normalized = await loop.run_in_executor(
                     executor,
                     normalize_batch,
                     products,
-                    source
+                    source,
+                    self.seen_ids
                 )
                 
                 self.products.extend(normalized)
