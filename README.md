@@ -9,10 +9,17 @@ A concurrent data processing system that demonstrates advanced Python async prog
 uv sync
 
 # Run the complete system with Docker
-docker compose up --build
+docker compose -f docker/docker-compose.yml up --build
 
 # Or run locally (requires mock servers running)
+# Start mock servers
+docker compose -f docker/docker-compose.yml up mock-server-1 mock-server-2 mock-server-3 -d
+
+# Run pipeline
 uv run python -m src.pipeline.main
+
+# View results
+cat out/summary.json
 ```
 
 ## Overview
