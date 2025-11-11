@@ -12,7 +12,24 @@ This guide explains how to run the Async Data Pipeline using Docker and Docker C
 Run the complete system (3 mock servers + pipeline):
 
 ```bash
-docker compose up --build
+# Using Docker Compose directly
+cd docker && docker compose up --build
+
+# Or using Makefile
+make docker-up
+```
+
+For development (mock servers only):
+
+```bash
+# Start mock servers in background
+make docker-dev-up
+
+# Run pipeline locally
+make run
+
+# Stop mock servers
+make docker-dev-down
 ```
 
 This will:
@@ -52,7 +69,11 @@ This will:
 ### Run Only Mock Servers
 
 ```bash
-docker compose up mock-server-1 mock-server-2 mock-server-3
+# Using dev compose file
+cd docker && docker compose -f docker-compose.dev.yml up
+
+# Or using Makefile
+make docker-dev-up
 ```
 
 ### Run Pipeline Against Running Servers
