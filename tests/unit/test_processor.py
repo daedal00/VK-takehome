@@ -34,6 +34,37 @@ class TestNormalizer:
         
         assert product.id == "server-c:789"
         assert product.title == "Alt Product"
+    
+    def test_normalize_batch_with_deduplication(self):
+        from src.processor.normalizer import normalize_batch
+        
+        raw_products = [
+            {"id": 1, "name": "Product 1"},
+            {"id": 2, "name": "Product 2"},
+            {"id": 1, "name": "Product 1 Duplicate"},  # Duplicate
+        ]
+        
+        seen_ids = set()
+        products = normalize_batch(raw_products, "server-a", seen_ids)
+        
+        # Should only have 2 products (duplicate removed)
+        assert len(products) == 2
+        assert products[0].id == "server-a:1"
+        assert products[1].id == "server-a:2"
+        assert len(seen_ids) == 2
+    
+    def test_normalize_batch_without_deduplication(self):
+        from src.processor.normalizer import normalize_batch
+        
+        raw_products = [
+            {"id": 1, "name": "Product 1"},
+            {"id": 1, "name": "Product 1 Duplicate"},
+        ]
+        
+        # Without seen_ids, should keep duplicates
+        products = normalize_batch(raw_products, "server-a")
+        
+        assert len(products) == 2
 
 
 class TestDataProcessor:
