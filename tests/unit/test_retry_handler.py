@@ -46,6 +46,40 @@ class TestBackoffCalculation:
         delays = [calculate_backoff_delay(3, max_delay=4.0, jitter_max=0.5) for _ in range(100)]
         
         assert all(d <= 4.0 for d in delays)
+    
+    def test_deterministic_backoff_formula_verification(self):
+        """Verify exact backoff formula: min(4.0, (0.5 * (2 ** attempt)) + jitter)."""
+        # Test without jitter for deterministic verification
+        test_cases = [
+            (0, 0.5),   # 0.5 * (2^0) = 0.5
+            (1, 1.0),   # 0.5 * (2^1) = 1.0
+            (2, 2.0),   # 0.5 * (2^2) = 2.0
+            (3, 4.0),   # 0.5 * (2^3) = 4.0 (at cap)
+            (4, 4.0),   # 0.5 * (2^4) = 8.0, capped at 4.0
+            (5, 4.0),   # 0.5 * (2^5) = 16.0, capped at 4.0
+        ]
+        
+        for attempt, expected_delay in test_cases:
+            actual_delay = calculate_backoff_delay(attempt, max_delay=4.0, jitter_max=0.0)
+            assert actual_delay == expected_delay, \
+                f"Attempt {attempt}: expected {expected_delay}, got {actual_delay}"
+    
+    def test_backoff_formula_with_jitter_bounds(self):
+        """Verify backoff formula with jitter stays within bounds."""
+        # With jitter_max=0.5, delay should be in [base, base + 0.5]
+        test_cases = [
+            (0, 0.5, 1.0),    # base=0.5, range [0.5, 1.0]
+            (1, 1.0, 1.5),    # base=1.0, range [1.0, 1.5]
+            (2, 2.0, 2.5),    # base=2.0, range [2.0, 2.5]
+            (3, 4.0, 4.0),    # base=4.0, capped at max_delay=4.0
+        ]
+        
+        for attempt, min_expected, max_expected in test_cases:
+            delays = [calculate_backoff_delay(attempt, max_delay=4.0, jitter_max=0.5) 
+                     for _ in range(50)]
+            
+            assert all(min_expected <= d <= max_expected for d in delays), \
+                f"Attempt {attempt}: delays outside [{min_expected}, {max_expected}]"
 
 
 class TestRetryHandler:

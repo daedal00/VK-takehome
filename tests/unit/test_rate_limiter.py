@@ -86,3 +86,30 @@ class TestRateLimiter:
         
         assert len(results) == 20
         assert rate_limiter.tokens_available("endpoint1") >= 0
+    
+    @pytest.mark.asyncio
+    async def test_twenty_concurrent_coroutines_ceiling(self, rate_limiter):
+        """Test that 20 concurrent coroutines respect ≤5 acquires/sec ceiling.
+        
+        With 5 tokens initially available and 5 tokens/sec refill rate:
+        - First 5 acquires: immediate (0s)
+        - Next 15 acquires: require refills at 5/sec = 3 seconds
+        - Total minimum time: 3 seconds
+        """
+        start = time.monotonic()
+        
+        async def acquire():
+            await rate_limiter.acquire("endpoint1")
+            return time.monotonic()
+        
+        # Launch 20 concurrent coroutines
+        timestamps = await asyncio.gather(*[acquire() for _ in range(20)])
+        
+        elapsed = time.monotonic() - start
+        
+        # 20 acquires at 5/sec = minimum 3 seconds (5 immediate + 15 over 3s)
+        # Allow some tolerance for timing and scheduling overhead
+        assert elapsed >= 2.8, f"Expected ≥2.8s for 20 acquires at 5/sec, got {elapsed:.2f}s"
+        
+        # Verify all 20 acquires completed
+        assert len(timestamps) == 20
