@@ -2,6 +2,8 @@
 
 A concurrent data processing system that demonstrates advanced Python async programming, resilience patterns, and professional software engineering practices.
 
+> **📚 Deep Dive**: See [ARCHITECTURE.md](ARCHITECTURE.md) for system design, [DECISIONS.md](DECISIONS.md) for trade-off analysis, and [AI_USAGE.md](AI_USAGE.md) for AI tool usage.
+
 ## Quick Start (30 seconds)
 
 ```bash
@@ -86,7 +88,17 @@ GitHub Actions runs automatically on all PRs:
 
 ## Configuration
 
-Configuration follows override precedence: CLI flags > Environment variables > config.yaml
+Configuration follows override precedence: **CLI flags > Environment variables > config.yaml**
+
+Example override:
+
+```bash
+# Override rate limit via environment
+PIPELINE_RATE_LIMIT_RPS=10 uv run python -m src.pipeline.main
+
+# Override via CLI flag
+uv run python -m src.pipeline.main --rate-limit 10
+```
 
 Key environment variables:
 
@@ -102,6 +114,21 @@ The pipeline generates `out/summary.json` with:
 - Per-source statistics (items fetched, errors, average price)
 - Normalized product data with unified schema
 - Structured error information
+
+## Resilience Demonstration
+
+See the resilience patterns in action:
+
+```bash
+make demo
+```
+
+This runs failure scenarios showing:
+
+- Circuit breaker opening after 3 failures
+- Exponential backoff retries (0.5s → 1s → 2s)
+- Rate limiting at exactly 5 req/sec
+- Graceful degradation with partial failures
 
 ## Success Criteria
 

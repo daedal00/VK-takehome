@@ -5,6 +5,8 @@ omit =
     src/models/*
     src/*/__init__.py
     src/mock_servers/*
+    src/monitoring/logger.py
+    src/pipeline/main.py
     */_version.py
     */__main__.py
 

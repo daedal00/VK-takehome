@@ -1,7 +1,8 @@
 """Unit tests for retry handler with exponential backoff."""
 
 import pytest
-from unittest.mock import Mock
+import httpx
+from unittest.mock import AsyncMock, Mock, patch
 
 from src.fetcher.retry_handler import RetryHandler, calculate_backoff_delay
 
@@ -46,6 +47,40 @@ class TestBackoffCalculation:
         delays = [calculate_backoff_delay(3, max_delay=4.0, jitter_max=0.5) for _ in range(100)]
         
         assert all(d <= 4.0 for d in delays)
+    
+    def test_deterministic_backoff_formula_verification(self):
+        """Verify exact backoff formula: min(4.0, (0.5 * (2 ** attempt)) + jitter)."""
+        # Test without jitter for deterministic verification
+        test_cases = [
+            (0, 0.5),   # 0.5 * (2^0) = 0.5
+            (1, 1.0),   # 0.5 * (2^1) = 1.0
+            (2, 2.0),   # 0.5 * (2^2) = 2.0
+            (3, 4.0),   # 0.5 * (2^3) = 4.0 (at cap)
+            (4, 4.0),   # 0.5 * (2^4) = 8.0, capped at 4.0
+            (5, 4.0),   # 0.5 * (2^5) = 16.0, capped at 4.0
+        ]
+        
+        for attempt, expected_delay in test_cases:
+            actual_delay = calculate_backoff_delay(attempt, max_delay=4.0, jitter_max=0.0)
+            assert actual_delay == expected_delay, \
+                f"Attempt {attempt}: expected {expected_delay}, got {actual_delay}"
+    
+    def test_backoff_formula_with_jitter_bounds(self):
+        """Verify backoff formula with jitter stays within bounds."""
+        # With jitter_max=0.5, delay should be in [base, base + 0.5]
+        test_cases = [
+            (0, 0.5, 1.0),    # base=0.5, range [0.5, 1.0]
+            (1, 1.0, 1.5),    # base=1.0, range [1.0, 1.5]
+            (2, 2.0, 2.5),    # base=2.0, range [2.0, 2.5]
+            (3, 4.0, 4.0),    # base=4.0, capped at max_delay=4.0
+        ]
+        
+        for attempt, min_expected, max_expected in test_cases:
+            delays = [calculate_backoff_delay(attempt, max_delay=4.0, jitter_max=0.5) 
+                     for _ in range(50)]
+            
+            assert all(min_expected <= d <= max_expected for d in delays), \
+                f"Attempt {attempt}: delays outside [{min_expected}, {max_expected}]"
 
 
 class TestRetryHandler:
@@ -130,3 +165,108 @@ class TestRetryHandler:
         
         # Should only try once
         assert mock_func.call_count == 1
+
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_400_returns_immediately():
+    """Test that 400 Bad Request returns immediately without backoff."""
+    handler = RetryHandler()
+    
+    call_count = 0
+    
+    async def failing_operation():
+        nonlocal call_count
+        call_count += 1
+        response = Mock()
+        response.status_code = 400
+        raise httpx.HTTPStatusError("400 Bad Request", request=Mock(), response=response)
+    
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        await handler.execute(failing_operation)
+    
+    # Should only call once (no retries for 400)
+    assert call_count == 1
+    assert "400" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_404_returns_immediately():
+    """Test that 404 Not Found returns immediately without backoff."""
+    handler = RetryHandler()
+    
+    call_count = 0
+    
+    async def failing_operation():
+        nonlocal call_count
+        call_count += 1
+        response = Mock()
+        response.status_code = 404
+        raise httpx.HTTPStatusError("404 Not Found", request=Mock(), response=response)
+    
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        await handler.execute(failing_operation)
+    
+    # Should only call once (no retries for 404)
+    assert call_count == 1
+    assert "404" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_max_retries_reached_with_backoff_timing():
+    """Test that max retries applies correct backoff durations."""
+    handler = RetryHandler(max_retries=3, base_delay=0.5)
+    
+    call_count = 0
+    sleep_durations = []
+    
+    async def failing_operation():
+        nonlocal call_count
+        call_count += 1
+        response = Mock()
+        response.status_code = 503
+        raise httpx.HTTPStatusError("503 Service Unavailable", request=Mock(), response=response)
+    
+    async def mock_sleep(duration):
+        sleep_durations.append(duration)
+    
+    with patch('asyncio.sleep', side_effect=mock_sleep):
+        with pytest.raises(httpx.HTTPStatusError):
+            await handler.execute(failing_operation)
+    
+    # Should have max_retries + 1 attempts (initial + retries)
+    assert call_count == handler.max_retries + 1
+    
+    # Should have max_retries sleep calls (between attempts)
+    assert len(sleep_durations) == handler.max_retries
+    
+    # Verify exponential backoff with jitter (base values before jitter)
+    # 0.5 * (2^0) = 0.5, 0.5 * (2^1) = 1.0, 0.5 * (2^2) = 2.0
+    # With jitter, values will be slightly higher
+    assert 0.5 <= sleep_durations[0] <= 1.0
+    assert 1.0 <= sleep_durations[1] <= 1.5
+    assert 2.0 <= sleep_durations[2] <= 2.5
+    
+    # Total backoff should be ≤ 4s per call (capped)
+    for duration in sleep_durations:
+        assert duration <= 4.0
+
+
+@pytest.mark.asyncio
+async def test_max_retries_logs_structured_output():
+    """Test that max retries reached logs structured error information."""
+    handler = RetryHandler(max_retries=2)
+    
+    async def failing_operation():
+        response = Mock()
+        response.status_code = 503
+        raise httpx.HTTPStatusError("503 Service Unavailable", request=Mock(), response=response)
+    
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await handler.execute(failing_operation)
+    
+    # Verify error contains structured information
+    error = exc_info.value
+    assert "503" in str(error)
+    assert "Service Unavailable" in str(error)
