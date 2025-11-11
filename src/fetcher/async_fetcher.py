@@ -69,7 +69,7 @@ class AsyncFetcher:
             try:
                 start = asyncio.get_event_loop().time()
                 response = await self.http_client.get(
-                    f"{endpoint}/products",
+                    endpoint,
                     params={"page": page}
                 )
                 duration = asyncio.get_event_loop().time() - start

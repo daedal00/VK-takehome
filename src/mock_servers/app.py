@@ -132,5 +132,27 @@ def create_server_c() -> FastAPI:
     )
 
 
+def create_app() -> FastAPI:
+    """
+    Factory function for uvicorn --factory.
+    
+    Reads SERVER_NAME from environment to determine which server to create.
+    Defaults to server-a if not specified.
+    """
+    server_name = os.getenv("SERVER_NAME", "api1")
+    
+    server_map = {
+        "api1": create_server_a,
+        "api2": create_server_b,
+        "api3": create_server_c,
+        "server-a": create_server_a,
+        "server-b": create_server_b,
+        "server-c": create_server_c,
+    }
+    
+    factory = server_map.get(server_name, create_server_a)
+    return factory()
+
+
 # Default app for running directly
-app = create_server_a()
+app = create_app()

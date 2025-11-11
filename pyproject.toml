@@ -22,9 +22,6 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "black>=23.9.0",
-    "ruff>=0.1.0",
-    "mypy>=1.6.0",
 ]
 
 [build-system]
@@ -45,9 +42,6 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
-
-[tool.black]
-line-length = 88
 target-version = ['py313']
 include = '\.pyi?$'
 extend-exclude = '''
