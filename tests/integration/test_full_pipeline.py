@@ -71,13 +71,13 @@ async def test_full_pipeline_fetcher_to_processor():
         assert all(s.pages_fetched == 2 for s in stats_dict.values())
         assert all(s.items_fetched == 20 for s in stats_dict.values())
         
-        # Verify processor stats
-        assert processor_stats.products_processed == 40  # 2 endpoints * 2 pages * 10 items
+        # Verify processor stats (deduplication reduces count)
+        assert processor_stats.products_processed == 20  # Deduplicated (both endpoints have same IDs)
         assert processor_stats.batches_processed == 4  # 2 endpoints * 2 pages
         
-        # Verify normalized products
+        # Verify normalized products (deduplicated)
         products = processor.get_products()
-        assert len(products) == 40
+        assert len(products) == 20  # Deduplicated
         
         # Check product schema
         product = products[0]
@@ -95,9 +95,9 @@ async def test_full_pipeline_fetcher_to_processor():
         assert metrics["sources"]["http://server1.com"] > 100
         assert metrics["sources"]["http://server2.com"] < 30
         
-        # Check category counts
-        assert metrics["categories"]["electronics"] == 20
-        assert metrics["categories"]["books"] == 20
+        # Check category counts (deduplicated)
+        assert metrics["categories"]["electronics"] == 10
+        assert metrics["categories"]["books"] == 10
 
 
 @pytest.mark.integration
