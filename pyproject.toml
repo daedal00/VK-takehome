@@ -33,14 +33,39 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests/unit"]
-addopts = "-v --tb=short --cov=src --cov-report=term-missing --cov-report=html"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
 markers = [
     "unit: fast, pure-python unit tests",
     "integration: slow, uses real FastAPI mocks/compose",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+    "src/models/*",
+    "src/*/__init__.py",
+    "src/mock_servers/*",
+    "src/monitoring/logger.py",
+    "*/_version.py",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 1
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "except (KeyboardInterrupt, SystemExit):",
 ]
 
 [tool.mypy]
