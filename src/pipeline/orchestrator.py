@@ -7,6 +7,7 @@ from src.fetcher.async_fetcher import AsyncFetcher
 from src.fetcher.circuit_breaker import CircuitBreaker
 from src.fetcher.http_client import AsyncHTTPClient
 from src.fetcher.rate_limiter import RateLimiter
+from src.models.config import PipelineConfig
 from src.models.data_models import PipelineResult
 from src.processor import DataProcessor, ThreadSafeAggregator
 
@@ -14,15 +15,17 @@ from src.processor import DataProcessor, ThreadSafeAggregator
 class PipelineOrchestrator:
     """Orchestrates the complete data pipeline."""
     
-    def __init__(
-        self,
-        endpoints: List[str],
-        queue_size: int = 100,
-        worker_pool_size: int = 4
-    ):
-        self.endpoints = endpoints
-        self.queue_size = queue_size
-        self.worker_pool_size = worker_pool_size
+    def __init__(self, config: PipelineConfig):
+        """
+        Initialize orchestrator with pipeline configuration.
+        
+        Args:
+            config: Pipeline configuration object
+        """
+        self.config = config
+        self.endpoints = [ep.url for ep in config.endpoints]
+        self.queue_size = config.bounded_queue_size
+        self.worker_pool_size = config.worker_pool_size
     
     async def run(self) -> PipelineResult:
         """
