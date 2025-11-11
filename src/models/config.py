@@ -6,7 +6,21 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+class EndpointConfig(BaseModel):
+    """Configuration for a single API endpoint."""
+    name: str = Field(description="Endpoint identifier")
+    url: str = Field(description="Full URL to the endpoint")
+    
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate URL format."""
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError(f"URL must start with http:// or https://, got: {v}")
+        return v
 
 
 class PipelineConfig(BaseModel):
@@ -57,6 +71,45 @@ class PipelineConfig(BaseModel):
     # Output configuration (Requirement 8.1, 8.4)
     output_directory: str = Field(default="out", description="Output directory for results")
     output_filename: str = Field(default="summary.json", description="Output JSON filename")
+    
+    # Endpoint configuration
+    endpoints: List[EndpointConfig] = Field(
+        default=[
+            EndpointConfig(name="api1", url="http://localhost:8001/products"),
+            EndpointConfig(name="api2", url="http://localhost:8002/products"),
+            EndpointConfig(name="api3", url="http://localhost:8003/products"),
+        ],
+        description="API endpoints to fetch from"
+    )
+    
+    @field_validator('max_requests_per_second')
+    @classmethod
+    def validate_rate_limit(cls, v: int) -> int:
+        """Validate rate limit is positive."""
+        if v <= 0:
+            raise ValueError(f"max_requests_per_second must be positive, got: {v}")
+        return v
+    
+    @field_validator('worker_pool_size')
+    @classmethod
+    def validate_worker_pool(cls, v: int) -> int:
+        """Validate worker pool size is positive."""
+        if v <= 0:
+            raise ValueError(f"worker_pool_size must be positive, got: {v}")
+        return v
+    
+    @field_validator('total_timeout')
+    @classmethod
+    def validate_timeout(cls, v: float) -> float:
+        """Validate timeout is positive."""
+        if v <= 0:
+            raise ValueError(f"total_timeout must be positive, got: {v}")
+        return v
+    
+    @property
+    def output_path(self) -> Path:
+        """Get full output file path."""
+        return Path(self.output_directory) / self.output_filename
     
     # Environment variable overrides
     @classmethod
@@ -112,7 +165,22 @@ class ConfigManager:
         self._config: Optional[PipelineConfig] = None
     
     def load_config(self, cli_overrides: Optional[Dict] = None) -> PipelineConfig:
-        """Load configuration with override precedence: CLI > ENV > YAML."""
+        """
+        Load configuration with override precedence: CLI > ENV > YAML.
+        
+        This implements the three-tier configuration system specified in
+        requirements 4.3 and 7.4. Each tier can override values from lower
+        tiers, with CLI flags having the highest precedence.
+        
+        Args:
+            cli_overrides: Optional dictionary of CLI flag overrides
+            
+        Returns:
+            Fully merged PipelineConfig instance
+            
+        Raises:
+            ValueError: If configuration validation fails
+        """
         # Start with defaults
         config_dict = {}
         
@@ -121,6 +189,12 @@ class ConfigManager:
             with open(self.config_file, 'r') as f:
                 yaml_config = yaml.safe_load(f)
                 if yaml_config:
+                    # Handle endpoints specially to convert dicts to EndpointConfig
+                    if 'endpoints' in yaml_config:
+                        yaml_config['endpoints'] = [
+                            EndpointConfig(**ep) if isinstance(ep, dict) else ep
+                            for ep in yaml_config['endpoints']
+                        ]
                     config_dict.update(yaml_config)
         
         # Create base config from YAML + defaults
@@ -141,6 +215,8 @@ class ConfigManager:
         
         # Apply CLI overrides (highest precedence)
         if cli_overrides:
+            # Filter out None values from CLI
+            cli_overrides = {k: v for k, v in cli_overrides.items() if v is not None}
             merged_dict.update(cli_overrides)
         
         self._config = PipelineConfig(**merged_dict)
