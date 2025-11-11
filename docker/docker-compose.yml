@@ -1,8 +1,6 @@
 # Docker Compose configuration for Async Data Pipeline
 # Orchestrates 3 mock API servers and the pipeline application
 
-version: '3.8'
-
 services:
   # Mock API Server 1
   mock-server-1:

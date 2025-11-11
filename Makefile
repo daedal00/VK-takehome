@@ -1,10 +1,21 @@
-.PHONY: help install test test-unit test-integration lint format clean docker-build docker-up docker-down docker-dev-up docker-dev-down manual-test
+.PHONY: help install test test-unit test-integration lint format clean docker-build docker-up docker-down docker-dev-up docker-dev-down manual-test up demo
 
 help: ## Show this help message
-	@echo 'Usage: make [target]'
+	@echo '🚀 Async Data Pipeline - Quick Commands'
+	@echo ''
+	@echo '⚡ Quick Start (30 seconds):'
+	@echo '  make up          # Build and run complete system'
+	@echo '  make test        # Run all tests'
+	@echo '  make demo        # Show failure scenarios'
 	@echo ''
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Quick start commands
+up: docker-up ## Quick start: Build and run complete system
+
+demo: ## Run failure scenario demonstrations
+	./demo_failure_scenarios.sh
 
 install: ## Install dependencies with uv
 	uv sync
