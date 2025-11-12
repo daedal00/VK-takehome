@@ -30,7 +30,8 @@ class AsyncFetcher:
         http_client: AsyncHTTPClient,
         max_retries: int = 3,
         retry_base_delay: float = 0.5,
-        retryable_status_codes: Optional[List[int]] = None
+        retryable_status_codes: Optional[List[int]] = None,
+        logger: Optional['StructuredLogger'] = None
     ):
         """
         Initialize fetcher with resilience components.
@@ -42,6 +43,7 @@ class AsyncFetcher:
             max_retries: Maximum retry attempts per request
             retry_base_delay: Base delay for exponential backoff
             retryable_status_codes: HTTP status codes that trigger retries
+            logger: Optional structured logger for telemetry
         """
         self.rate_limiter = rate_limiter
         self.circuit_breaker = circuit_breaker
@@ -51,6 +53,7 @@ class AsyncFetcher:
         self.retryable_status_codes = frozenset(
             retryable_status_codes or [429, 502, 503, 504]
         )
+        self.logger = logger
     
     async def fetch_endpoint_pages(
         self,
@@ -171,6 +174,9 @@ class AsyncFetcher:
         cb_result = self.circuit_breaker.should_allow(endpoint)
         last_error = None
         
+        if self.logger:
+            self.logger.fetch_start(source=endpoint, page=page)
+        
         for attempt in range(self.max_retries):
             try:
                 result = await self._fetch_single_page(endpoint, page)
@@ -181,6 +187,13 @@ class AsyncFetcher:
                 else:
                     self.circuit_breaker.record_success(endpoint)
                 
+                if self.logger and result:
+                    self.logger.fetch_success(
+                        source=endpoint,
+                        page=page,
+                        elapsed_ms=result.get('duration', 0) * 1000
+                    )
+                
                 return result
                 
             except httpx.HTTPStatusError as e:
@@ -188,6 +201,15 @@ class AsyncFetcher:
                 status_code = e.response.status_code
                 is_retryable = status_code in self.retryable_status_codes
                 self.circuit_breaker.record_failure(endpoint, retryable=is_retryable)
+                
+                if self.logger:
+                    self.logger.fetch_error(
+                        source=endpoint,
+                        page=page,
+                        status=status_code,
+                        error=str(e),
+                        attempt=attempt
+                    )
                 
                 if not is_retryable:
                     # Non-retryable HTTP error (e.g., 404, 400)
@@ -201,6 +223,15 @@ class AsyncFetcher:
                 last_error = e
                 self.circuit_breaker.record_failure(endpoint, retryable=True)
                 
+                if self.logger:
+                    self.logger.fetch_error(
+                        source=endpoint,
+                        page=page,
+                        status=None,
+                        error="timeout",
+                        attempt=attempt
+                    )
+                
                 # Timeout is retryable - apply backoff if retries remain
                 if attempt < self.max_retries - 1:
                     await self._apply_backoff(attempt)
@@ -209,6 +240,16 @@ class AsyncFetcher:
                 # Unexpected error (e.g., JSON decode error)
                 last_error = e
                 self.circuit_breaker.record_failure(endpoint, retryable=False)
+                
+                if self.logger:
+                    self.logger.fetch_error(
+                        source=endpoint,
+                        page=page,
+                        status=None,
+                        error=str(e),
+                        attempt=attempt
+                    )
+                
                 return {"error": str(e), "retryable": False, "status_code": None}
         
         # All retries exhausted

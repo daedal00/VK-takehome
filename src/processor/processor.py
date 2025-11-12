@@ -16,19 +16,21 @@ class DataProcessor:
     and aggregates results.
     """
     
-    def __init__(self, worker_pool_size: int = 4, batch_size: int = 50):
+    def __init__(self, worker_pool_size: int = 4, batch_size: int = 50, logger=None):
         """
         Initialize processor.
         
         Args:
             worker_pool_size: Number of worker threads
             batch_size: Maximum items per batch
+            logger: Optional structured logger
         """
         self.worker_pool_size = worker_pool_size
         self.batch_size = batch_size
         self.products: List[Product] = []
         self.batches_processed = 0
         self.seen_ids: set = set()  # For deduplication
+        self.logger = logger
     
     async def consume_queue(
         self,
@@ -53,6 +55,10 @@ class DataProcessor:
             while True:
                 page_data = await queue.get()
                 
+                # Log queue depth periodically
+                if self.logger and self.batches_processed % 10 == 0:
+                    self.logger.queue_depth(size=queue.qsize())
+                
                 # Check for sentinel
                 if page_data is sentinel:
                     break
@@ -62,6 +68,7 @@ class DataProcessor:
                 source = page_data.get("endpoint", "unknown")
                 
                 # Process in thread pool (CPU-bound) with deduplication
+                batch_start = asyncio.get_event_loop().time()
                 normalized = await loop.run_in_executor(
                     executor,
                     normalize_batch,
@@ -69,9 +76,16 @@ class DataProcessor:
                     source,
                     self.seen_ids
                 )
+                batch_elapsed = (asyncio.get_event_loop().time() - batch_start) * 1000
                 
                 self.products.extend(normalized)
                 self.batches_processed += 1
+                
+                if self.logger:
+                    self.logger.batch_processed(
+                        batch_size=len(normalized),
+                        elapsed_ms=batch_elapsed
+                    )
         
         processing_time = asyncio.get_event_loop().time() - start_time
         

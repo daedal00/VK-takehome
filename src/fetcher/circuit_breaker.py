@@ -47,7 +47,8 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 3,
         cooldown_seconds: float = 15.0,
-        clock: Optional[Clock] = None
+        clock: Optional[Clock] = None,
+        logger=None
     ):
         """
         Initialize circuit breaker.
@@ -56,10 +57,12 @@ class CircuitBreaker:
             failure_threshold: Number of failures before opening circuit
             cooldown_seconds: Time to wait before attempting half-open probe
             clock: Clock interface for time management (defaults to MonotonicClock)
+            logger: Optional structured logger
         """
         self.failure_threshold = failure_threshold
         self.cooldown_seconds = cooldown_seconds
         self.clock = clock or MonotonicClock()
+        self.logger = logger
         self._circuits: Dict[str, CircuitBreakerState] = {}
     
     def _get_circuit(self, endpoint: str) -> CircuitBreakerState:
@@ -92,6 +95,8 @@ class CircuitBreaker:
             if time_since_failure >= self.cooldown_seconds:
                 # Transition to HALF_OPEN and issue probe token
                 circuit.state = CircuitState.HALF_OPEN
+                if self.logger:
+                    self.logger.circuit_breaker_state(source=endpoint, state="half_open")
                 token = HalfOpenToken(endpoint=endpoint, timestamp=current_time)
                 circuit.half_open_token = token
                 return token
@@ -130,6 +135,8 @@ class CircuitBreaker:
             # Successful probe - close the circuit
             # Close even without token to avoid sticky half-open state
             circuit.state = CircuitState.CLOSED
+            if self.logger:
+                self.logger.circuit_breaker_state(source=endpoint, state="closed")
             circuit.failure_count = 0
             circuit.half_open_token = None
             return
@@ -160,10 +167,14 @@ class CircuitBreaker:
             # Check if threshold reached
             if circuit.failure_count >= self.failure_threshold:
                 circuit.state = CircuitState.OPEN
+                if self.logger:
+                    self.logger.circuit_breaker_state(source=endpoint, state="open")
         
         elif circuit.state == CircuitState.HALF_OPEN:
             # Failed probe - reopen circuit
             circuit.state = CircuitState.OPEN
+            if self.logger:
+                self.logger.circuit_breaker_state(source=endpoint, state="open")
             circuit.failure_count = self.failure_threshold
             circuit.last_failure_time = current_time
             circuit.half_open_token = None
