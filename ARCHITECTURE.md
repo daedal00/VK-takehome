@@ -87,10 +87,10 @@ Caps chosen so worst-case across endpoints stays within the **60s pipeline SLA**
 
 ```bash
 uv sync
-uv run python -m src.pipeline.main        # with progress
-uv run pytest -q                          # tests
-uv run pytest --cov=src --cov-report=html # coverage
-docker compose up --build                 # mocks + pipeline
+docker compose -f docker/docker-compose.yml up -d  # start mock servers
+uv run python -m src.pipeline.main                 # run pipeline
+uv run pytest -q                                   # tests
+uv run pytest --cov=src --cov-report=html          # coverage
 ```
 
 **Determinism:** Integration tests use fixed seeds/page counts; demo runs may vary items to exercise resilience.
@@ -99,7 +99,6 @@ docker compose up --build                 # mocks + pipeline
 
 ## Links
 
-- **[Full Architecture](docs/ARCHITECTURE_FULL.md)** - Deep dive with component details, performance numbers, library choices
 - **[Decisions & Tradeoffs](DECISIONS.md)** - Why we chose each approach, alternatives considered
 - **[Requirements](REQUIREMENTS.md)** - Complete requirements with acceptance criteria
 - **[AI Usage](AI_USAGE.md)** - Transparent AI tool usage documentation

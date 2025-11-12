@@ -10,18 +10,17 @@ A production-ready concurrent data processing system demonstrating advanced Pyth
 # Install dependencies
 uv sync
 
-# Run the complete system with Docker
-docker compose -f docker/docker-compose.yml up --build
-
-# Or run locally (requires mock servers running)
-# Start mock servers
-docker compose -f docker/docker-compose.yml up mock-server-1 mock-server-2 mock-server-3 -d
+# Start mock API servers
+docker compose -f docker/docker-compose.yml up -d
 
 # Run pipeline
 uv run python -m src.pipeline.main
 
 # View results
 cat out/summary.json
+
+# Stop servers when done
+docker compose -f docker/docker-compose.yml down
 ```
 
 ## Overview
@@ -145,6 +144,7 @@ async-data-pipeline/
 
 ## Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design, component breakdown, data flow diagrams
-- **[DECISIONS.md](DECISIONS.md)**: Technical decisions, library choices, trade-off analysis
-- **[AI_USAGE.md](AI_USAGE.md)**: AI tool usage transparency and engineering ownership
+- **[REQUIREMENTS.md](REQUIREMENTS.md)**: Complete requirements with acceptance criteria
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design and component overview
+- **[DECISIONS.md](DECISIONS.md)**: Technical decisions and tradeoffs
+- **[AI_USAGE.md](AI_USAGE.md)**: AI tool usage transparency

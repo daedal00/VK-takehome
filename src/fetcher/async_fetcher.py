@@ -23,7 +23,7 @@ class AsyncFetcher:
     - Stream results to bounded queue for memory efficiency
     """
     
-    # Retry configuration (Requirement 2.1, 2.3)
+    # Retry configuration
     MAX_RETRIES = 3
     RETRY_BASE_DELAY = 0.5  # seconds
     RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})

@@ -38,6 +38,7 @@ addopts = "-v --tb=short"
 markers = [
     "unit: fast, pure-python unit tests",
     "integration: slow, uses real FastAPI mocks/compose",
+    "performance: performance metrics"
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
