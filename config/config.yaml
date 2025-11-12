@@ -40,8 +40,8 @@ mock_server_ports:
   - 8002
   - 8003
 mock_server_items_per_page: 20
-mock_server_min_pages: 5
-mock_server_error_rate: 0.1
+mock_server_min_pages: 7
+mock_server_error_rate: 0.0
 
 # Logging (Requirement 4.2, 13.4)
 log_level: INFO

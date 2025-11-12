@@ -23,16 +23,14 @@ class AsyncFetcher:
     - Stream results to bounded queue for memory efficiency
     """
     
-    # Retry configuration
-    MAX_RETRIES = 3
-    RETRY_BASE_DELAY = 0.5  # seconds
-    RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
-    
     def __init__(
         self,
         rate_limiter: RateLimiter,
         circuit_breaker: CircuitBreaker,
-        http_client: AsyncHTTPClient
+        http_client: AsyncHTTPClient,
+        max_retries: int = 3,
+        retry_base_delay: float = 0.5,
+        retryable_status_codes: Optional[List[int]] = None
     ):
         """
         Initialize fetcher with resilience components.
@@ -41,10 +39,18 @@ class AsyncFetcher:
             rate_limiter: Controls request rate per endpoint
             circuit_breaker: Prevents requests to failing endpoints
             http_client: Makes HTTP requests with timeouts
+            max_retries: Maximum retry attempts per request
+            retry_base_delay: Base delay for exponential backoff
+            retryable_status_codes: HTTP status codes that trigger retries
         """
         self.rate_limiter = rate_limiter
         self.circuit_breaker = circuit_breaker
         self.http_client = http_client
+        self.max_retries = max_retries
+        self.retry_base_delay = retry_base_delay
+        self.retryable_status_codes = frozenset(
+            retryable_status_codes or [429, 502, 503, 504]
+        )
     
     async def fetch_endpoint_pages(
         self,
@@ -67,12 +73,16 @@ class AsyncFetcher:
         Returns:
             Statistics for this endpoint (pages, items, errors, duration)
         """
+        from datetime import datetime, timezone
+        from src.models.data_models import ErrorAction, ErrorRecord
+        
         stats = EndpointStats(
             name=endpoint,
             pages_fetched=0,
             items_fetched=0,
             errors=0,
-            total_duration=0.0
+            total_duration=0.0,
+            error_details=[]
         )
         
         page = 1
@@ -96,6 +106,18 @@ class AsyncFetcher:
             if "error" in page_result:
                 # Failed after all retries
                 stats.errors += 1
+                
+                # Create detailed error record
+                error_record = ErrorRecord(
+                    source=endpoint,
+                    page=page,
+                    code=page_result.get("status_code"),
+                    error=page_result["error"],
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    action=ErrorAction.RETRY if page_result.get("retryable", False) else ErrorAction.SKIP
+                )
+                stats.error_details.append(error_record)
+                
                 if not page_result.get("retryable", False):
                     # Non-retryable error, stop fetching
                     break
@@ -149,7 +171,7 @@ class AsyncFetcher:
         cb_result = self.circuit_breaker.should_allow(endpoint)
         last_error = None
         
-        for attempt in range(self.MAX_RETRIES):
+        for attempt in range(self.max_retries):
             try:
                 result = await self._fetch_single_page(endpoint, page)
                 
@@ -163,15 +185,16 @@ class AsyncFetcher:
                 
             except httpx.HTTPStatusError as e:
                 last_error = e
-                is_retryable = e.response.status_code in self.RETRYABLE_STATUS_CODES
+                status_code = e.response.status_code
+                is_retryable = status_code in self.retryable_status_codes
                 self.circuit_breaker.record_failure(endpoint, retryable=is_retryable)
                 
                 if not is_retryable:
                     # Non-retryable HTTP error (e.g., 404, 400)
-                    return {"error": str(e), "retryable": False}
+                    return {"error": str(e), "retryable": False, "status_code": status_code}
                 
                 # Retryable error - apply backoff if retries remain
-                if attempt < self.MAX_RETRIES - 1:
+                if attempt < self.max_retries - 1:
                     await self._apply_backoff(attempt)
                     
             except httpx.TimeoutException as e:
@@ -179,17 +202,20 @@ class AsyncFetcher:
                 self.circuit_breaker.record_failure(endpoint, retryable=True)
                 
                 # Timeout is retryable - apply backoff if retries remain
-                if attempt < self.MAX_RETRIES - 1:
+                if attempt < self.max_retries - 1:
                     await self._apply_backoff(attempt)
                     
             except Exception as e:
                 # Unexpected error (e.g., JSON decode error)
                 last_error = e
                 self.circuit_breaker.record_failure(endpoint, retryable=False)
-                return {"error": str(e), "retryable": False}
+                return {"error": str(e), "retryable": False, "status_code": None}
         
         # All retries exhausted
-        return {"error": str(last_error), "retryable": True}
+        status_code = getattr(last_error, 'response', None)
+        if status_code:
+            status_code = status_code.status_code
+        return {"error": str(last_error), "retryable": True, "status_code": status_code}
     
     async def _fetch_single_page(self, endpoint: str, page: int) -> Optional[Dict]:
         """
@@ -251,7 +277,7 @@ class AsyncFetcher:
         Args:
             attempt: Current attempt number (0-indexed)
         """
-        delay = self.RETRY_BASE_DELAY * (2 ** attempt)
+        delay = self.retry_base_delay * (2 ** attempt)
         await asyncio.sleep(delay)
     
     async def fetch_all_endpoints(
