@@ -16,7 +16,7 @@ services:
       - RANDOM_SEED=42
       - ERROR_RATE=0.1
       - EXTRA_LATENCY_MS=0
-      - PAGES=5
+      - PAGES=7
       - ITEMS_PER_PAGE=20
     ports:
       - "8001:8001"
@@ -39,7 +39,7 @@ services:
       - RANDOM_SEED=43
       - ERROR_RATE=0.1
       - EXTRA_LATENCY_MS=0
-      - PAGES=5
+      - PAGES=7
       - ITEMS_PER_PAGE=20
     ports:
       - "8002:8002"
@@ -62,7 +62,7 @@ services:
       - RANDOM_SEED=44
       - ERROR_RATE=0.1
       - EXTRA_LATENCY_MS=0
-      - PAGES=5
+      - PAGES=7
       - ITEMS_PER_PAGE=20
     ports:
       - "8003:8003"
