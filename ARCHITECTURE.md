@@ -105,5 +105,3 @@ docker compose up --build                 # mocks + pipeline
 - **[AI Usage](AI_USAGE.md)** - Transparent AI tool usage documentation
 
 ---
-
-**Why this works:** Reviewers get the whole system in ~2 minutes. Every major risk has a named pattern. Clear path to reproduce and verify. Deep dives are one click away.
