@@ -56,6 +56,11 @@ class EndpointStats:
     items_fetched: int
     errors: int
     total_duration: float
+    error_details: List['ErrorRecord'] = None
+    
+    def __post_init__(self):
+        if self.error_details is None:
+            self.error_details = []
 
 
 @dataclass

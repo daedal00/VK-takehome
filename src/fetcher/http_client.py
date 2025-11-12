@@ -18,7 +18,9 @@ class AsyncHTTPClient:
     def __init__(
         self,
         connect_timeout: float = 3.0,
-        read_timeout: float = 8.0
+        read_timeout: float = 8.0,
+        write_timeout: float = 5.0,
+        pool_timeout: float = 5.0
     ):
         """
         Initialize HTTP client.
@@ -26,9 +28,13 @@ class AsyncHTTPClient:
         Args:
             connect_timeout: Connection timeout in seconds
             read_timeout: Read timeout in seconds
+            write_timeout: Write timeout in seconds
+            pool_timeout: Pool timeout in seconds
         """
         self.connect_timeout = connect_timeout
         self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.pool_timeout = pool_timeout
         self._client: Optional[httpx.AsyncClient] = None
     
     async def __aenter__(self):
@@ -36,8 +42,8 @@ class AsyncHTTPClient:
         timeout = httpx.Timeout(
             connect=self.connect_timeout,
             read=self.read_timeout,
-            write=5.0,  # Default write timeout
-            pool=5.0    # Default pool timeout
+            write=self.write_timeout,
+            pool=self.pool_timeout
         )
         self._client = httpx.AsyncClient(timeout=timeout)
         return self
