@@ -1,6 +1,6 @@
 # Design Decisions & Tradeoffs
 
-Quick reference for key architectural choices. See [docs/DECISIONS_FULL.md](docs/DECISIONS_FULL.md) for detailed analysis.
+
 
 ---
 
