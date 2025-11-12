@@ -53,6 +53,9 @@ The system consists of three main layers:
 ### Running Tests
 
 ```bash
+# install pytest and optional dependencies
+uv sync --all-deps
+
 # Run all tests
 uv run pytest -v
 
