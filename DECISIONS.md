@@ -146,20 +146,3 @@ _extract_category({"category": {"name": "Electronics"}}) → "electronics"
 **Why:** Same seed produces same data every run. Failures can be reproduced locally. CI stability.
 
 **Tradeoff:** Fixed seed may not catch all edge cases (acceptable for CI stability).
-
----
-
-## Summary
-
-All decisions prioritize:
-
-1. **Requirements first** - Every decision maps to specific requirements
-2. **Best practices** - Industry-standard patterns (exponential backoff, circuit breakers)
-3. **Simplicity** - Simplest approach that meets requirements (KISS)
-4. **Performance** - Optimize for throughput and latency within constraints
-5. **Testability** - Design for comprehensive testing (>90% coverage)
-6. **Maintainability** - Clear separation of concerns, comprehensive documentation
-
----
-
-**For detailed analysis, alternatives considered, and implementation details, see [docs/DECISIONS_FULL.md](docs/DECISIONS_FULL.md).**
